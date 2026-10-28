@@ -2,12 +2,12 @@
 page_title: "alkira_multi_cloud_gateway Resource - terraform-provider-alkira"
 subcategory: ""
 description: |-
-  Manage a Multi-Cloud Gateway. Creation waits until the gateway is PROVISIONED. An external gateway (created in Lumen Connect rather than from Alkira) cannot be deleted from Alkira, so terraform destroy fails for an imported external gateway.
+  Manage a Multi-Cloud Gateway. Create and update wait until the gateway is PROVISIONED. An external gateway (created in Lumen Connect rather than from Alkira) cannot be deleted from Alkira, so terraform destroy fails for an imported external gateway.
 ---
 
 # alkira_multi_cloud_gateway (Resource)
 
-Manage a Multi-Cloud Gateway. Creation waits until the gateway is PROVISIONED. An external gateway (created in Lumen Connect rather than from Alkira) cannot be deleted from Alkira, so `terraform destroy` fails for an imported external gateway.
+Manage a Multi-Cloud Gateway. Create and update wait until the gateway is PROVISIONED. An external gateway (created in Lumen Connect rather than from Alkira) cannot be deleted from Alkira, so `terraform destroy` fails for an imported external gateway.
 
 Changing `tier` or `description` updates the gateway in place. Changing `name`
 or `billing_account_number` replaces it. Creation fails if the gateway enters
@@ -40,6 +40,7 @@ resource "alkira_multi_cloud_gateway" "example" {
 
 ### Read-Only
 
+- `connector_ids` (Set of Number) IDs of the connectors attached to the gateway, as reported by the API. The value is read with the gateway, so connectors created in the same apply appear after the next refresh.
 - `external` (Boolean) True if the gateway was created in Lumen Connect rather than from Alkira.
 - `id` (String) The ID of this resource.
 - `native_id` (String) Native gateway ID assigned by Lumen.
@@ -51,6 +52,7 @@ resource "alkira_multi_cloud_gateway" "example" {
 Optional:
 
 - `create` (String)
+- `update` (String)
 
 ## Import
 
