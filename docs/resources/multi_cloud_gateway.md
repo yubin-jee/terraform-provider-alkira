@@ -2,16 +2,50 @@
 page_title: "alkira_multi_cloud_gateway Resource - terraform-provider-alkira"
 subcategory: ""
 description: |-
-  Manage a Multi-Cloud Gateway. Creation waits until the gateway is PROVISIONED. An external gateway (created in Lumen Connect rather than from Alkira) cannot be deleted from Alkira, so terraform destroy fails for an imported external gateway.
+  Manage a Multi-Cloud Gateway. Create and update wait until the gateway is PROVISIONED. An external gateway (external = true, created in Lumen Connect rather than from Alkira) is read-only to Terraform: changing its name, tier, description or billing_account_number fails at plan time, and destroying it fails at apply time without calling the API.
 ---
 
 # alkira_multi_cloud_gateway (Resource)
 
-Manage a Multi-Cloud Gateway. Creation waits until the gateway is PROVISIONED. An external gateway (created in Lumen Connect rather than from Alkira) cannot be deleted from Alkira, so `terraform destroy` fails for an imported external gateway.
+Manage a Multi-Cloud Gateway. Create and update wait until the gateway is PROVISIONED. An external gateway (`external = true`, created in Lumen Connect rather than from Alkira) is read-only to Terraform: changing its `name`, `tier`, `description` or `billing_account_number` fails at plan time, and destroying it fails at apply time without calling the API.
 
 Changing `tier` or `description` updates the gateway in place. Changing `name`
 or `billing_account_number` replaces it. Creation fails if the gateway enters
 `FAILED` or the create timeout expires. The default create timeout is 20 minutes.
+
+## Gateways created in Lumen Connect
+
+A gateway created natively in Lumen Connect has `external = true` once it is
+imported. It is read-only to Terraform:
+
+- **Changes fail at plan time.** If the configuration changes `name`, `tier`,
+  `description` or `billing_account_number` of an external gateway, `terraform plan`
+  fails and lists each change. Make the change in Lumen Connect, then set the
+  attributes back to their current values. Without this check the plan succeeds
+  and `terraform apply` fails with an API error.
+- **Destroy fails at apply time.** Providers cannot reject a destroy during
+  `plan`, so `terraform destroy` (or removing the resource block) plans a delete.
+  At apply, the provider stops with an error and does not call the API. Add
+  `lifecycle { prevent_destroy = true }` to make Terraform reject the destroy at
+  plan time.
+
+To stop managing an external gateway with Terraform, use
+`terraform state rm alkira_multi_cloud_gateway.<name>` or a `removed` block with
+`lifecycle { destroy = false }` (Terraform 1.7+). To keep using its attributes
+(for example in `alkira_connector_multi_cloud_gateway`), read it with the
+`alkira_multi_cloud_gateway` data source.
+
+```terraform
+resource "alkira_multi_cloud_gateway" "from_lumen_connect" {
+  name        = "lumen-connect-native-gw"
+  tier        = "50GBPS"
+  description = "Created in Lumen Connect"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+```
 
 ## Example Usage
 
@@ -51,6 +85,7 @@ resource "alkira_multi_cloud_gateway" "example" {
 Optional:
 
 - `create` (String)
+- `update` (String)
 
 ## Import
 

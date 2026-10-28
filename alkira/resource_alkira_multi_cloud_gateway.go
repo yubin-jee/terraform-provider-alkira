@@ -3,6 +3,7 @@ package alkira
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/alkiranet/alkira-client-go/alkira"
@@ -13,12 +14,13 @@ import (
 
 func resourceAlkiraMultiCloudGateway() *schema.Resource {
 	return &schema.Resource{
-		Description:   "Manage a Multi-Cloud Gateway. Create and update wait until the gateway is PROVISIONED. An external gateway (created in Lumen Connect rather than from Alkira) cannot be deleted from Alkira, so `terraform destroy` fails for an imported external gateway.",
+		Description:   "Manage a Multi-Cloud Gateway. Create and update wait until the gateway is PROVISIONED. An external gateway (`external = true`, created in Lumen Connect rather than from Alkira) is read-only to Terraform: changing its `name`, `tier`, `description` or `billing_account_number` fails at plan time, and destroying it fails at apply time without calling the API.",
 		CreateContext: resourceMultiCloudGatewayCreate,
 		ReadContext:   resourceMultiCloudGatewayRead,
 		UpdateContext: resourceMultiCloudGatewayUpdate,
 		DeleteContext: resourceMultiCloudGatewayDelete,
 		Importer:      &schema.ResourceImporter{StateContext: importWithReadValidation(resourceMultiCloudGatewayRead)},
+		CustomizeDiff: rejectExternalMultiCloudGatewayChanges,
 		Timeouts:      &schema.ResourceTimeout{Create: schema.DefaultTimeout(20 * time.Minute), Update: schema.DefaultTimeout(20 * time.Minute)},
 		Schema: map[string]*schema.Schema{
 			"name":                   {Type: schema.TypeString, Required: true, ForceNew: true, Description: "Name of the gateway. Changing the name creates a new gateway."},
@@ -123,7 +125,43 @@ func resourceMultiCloudGatewayUpdate(ctx context.Context, d *schema.ResourceData
 	return waitForMultiCloudGateway(ctx, d, api, d.Timeout(schema.TimeoutUpdate))
 }
 
+// multiCloudGatewayMutableFields are the configurable attributes, which Terraform cannot change on an external gateway.
+var multiCloudGatewayMutableFields = []string{"name", "tier", "description", "billing_account_number"}
+
+// rejectExternalMultiCloudGatewayChanges fails the plan when a gateway created in Lumen Connect
+// would be changed; the API only rejects it at apply time.
+func rejectExternalMultiCloudGatewayChanges(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+	if d.Id() == "" {
+		return nil
+	}
+	if external, _ := d.GetChange("external"); external != true {
+		return nil
+	}
+	var changes []string
+	for _, key := range multiCloudGatewayMutableFields {
+		if !d.HasChange(key) {
+			continue
+		}
+		old, new := d.GetChange(key)
+		changes = append(changes, fmt.Sprintf("  %s: %q -> %q", key, old, new))
+	}
+	if len(changes) == 0 {
+		return nil
+	}
+	return fmt.Errorf("multi-cloud gateway %q (ID %s) was created in Lumen Connect (external = true) and is read-only to Terraform, "+
+		"so these changes would fail at apply:\n%s\n\n"+
+		"Make the change in Lumen Connect instead, then set these attributes in your configuration back to their current values (left of the arrow). "+
+		"To stop managing the gateway with Terraform, run `terraform state rm <address>` (or use a `removed` block with "+
+		"`lifecycle { destroy = false }`) and read it with the `alkira_multi_cloud_gateway` data source.",
+		d.Get("name"), d.Id(), strings.Join(changes, "\n"))
+}
+
 func resourceMultiCloudGatewayDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	if d.Get("external").(bool) {
+		return diag.Errorf("multi-cloud gateway %q (ID %s) was created in Lumen Connect (external = true) and cannot be deleted from Terraform. "+
+			"Delete it in Lumen Connect, or keep it and stop managing it with `terraform state rm <address>` or a `removed` block with "+
+			"`lifecycle { destroy = false }`. Add `lifecycle { prevent_destroy = true }` to catch this at plan time.", d.Get("name"), d.Id())
+	}
 	_, err, valErr, _ := alkira.NewMultiCloudGateway(m.(*alkira.AlkiraClient)).Delete(d.Id())
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("deleting multi-cloud gateway %s: %w", d.Id(), err))
