@@ -251,6 +251,32 @@ func TestCreateSendsBillingAccountNumber(t *testing.T) {
 	}
 }
 
+// TestCreateOmittedBillingAccountNumberUsesTenantDefault: with billing_account_number unset, the
+// POST omits it so the API applies the tenant's default Lumen BAN, and Read stores that default.
+func TestCreateOmittedBillingAccountNumberUsesTenantDefault(t *testing.T) {
+	r := mcgwResource(t)
+	d := schema.TestResourceDataRaw(t, r.Schema, mcgwValues())
+	c := mcgwClient(t, func(req *http.Request) (int, string) {
+		if req.Method == "POST" {
+			var body map[string]interface{}
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := body["billingAccountNumber"]; ok {
+				t.Errorf("POST sent billingAccountNumber for an unset value: %v", body)
+			}
+			return 201, mcgwJSONBillingAccountNumber("10GBPS", "original", "PROVISIONED", "5-DEFAULT01")
+		}
+		return 200, mcgwJSONBillingAccountNumber("10GBPS", "original", "PROVISIONED", "5-DEFAULT01")
+	})
+	if diags := r.CreateContext(context.Background(), d, c); diags.HasError() {
+		t.Fatal(diags)
+	}
+	if d.Get("billing_account_number") != "5-DEFAULT01" {
+		t.Errorf("billing_account_number = %v, want the tenant default", d.Get("billing_account_number"))
+	}
+}
+
 func TestMultiCloudGatewayImportAndDelete(t *testing.T) {
 	r := mcgwResource(t)
 	for _, code := range []int{200, 404} {
