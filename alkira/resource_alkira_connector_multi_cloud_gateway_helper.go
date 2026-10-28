@@ -2,12 +2,52 @@ package alkira
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/alkiranet/alkira-client-go/alkira"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
+
+// onRampCloudRegionPattern matches the cloud provider's region code that leads an on-ramp
+// region, e.g. AWS "us-east-1", Azure "eastus" or "westus2", GCP "us-east4".
+var onRampCloudRegionPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+
+// onRampRegionExamples are shown in the error for a malformed on_ramp_region.
+var onRampRegionExamples = []string{
+	"us-east-1 - US East (N. Virginia) - Reston",
+	"eastus - East US - Ashburn",
+	"us-east4 - N. Virginia - Ashburn",
+}
+
+// validateOnRampRegion checks that on_ramp_region has the API's
+// "<cloud region> - <cloud region name> - <Lumen metro>" shape, so a typo or a bare
+// region code fails at plan time instead of with the API's 400 at apply. It checks the
+// format only: the set of regions depends on the tenant and is not known to the provider.
+func validateOnRampRegion(v interface{}, k string) ([]string, []error) {
+	region, ok := v.(string)
+	if !ok {
+		return nil, []error{fmt.Errorf("expected %s to be a string", k)}
+	}
+	parts := strings.SplitN(region, " - ", 3)
+	valid := len(parts) == 3 && onRampCloudRegionPattern.MatchString(parts[0])
+	for _, p := range parts[1:] {
+		valid = valid && p != "" && strings.TrimSpace(p) == p
+	}
+	if !valid {
+		examples := make([]string, len(onRampRegionExamples))
+		for i, e := range onRampRegionExamples {
+			examples[i] = fmt.Sprintf("%q", e)
+		}
+		return nil, []error{fmt.Errorf(
+			"%s %q is not a valid Lumen on-ramp region: expected \"<cloud region> - <cloud region name> - <Lumen metro>\", e.g. %s",
+			k, region, strings.Join(examples, ", "),
+		)}
+	}
+	return nil, nil
+}
 
 // validateMultiCloudGatewayOnRampRegions returns an error if any two instances share an
 // on_ramp_region, so the duplicate surfaces at plan time instead of the API's 400. Same
