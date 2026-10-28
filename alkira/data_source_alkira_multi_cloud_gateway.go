@@ -43,6 +43,12 @@ func dataSourceAlkiraMultiCloudGateway() *schema.Resource {
 				Type:        schema.TypeBool,
 				Computed:    true,
 			},
+			"connector_ids": {
+				Description: "IDs of the connectors attached to the gateway, as reported by the API.",
+				Type:        schema.TypeSet,
+				Computed:    true,
+				Elem:        &schema.Schema{Type: schema.TypeInt},
+			},
 		},
 	}
 }
@@ -52,7 +58,7 @@ func dataSourceAlkiraMultiCloudGatewayRead(ctx context.Context, d *schema.Resour
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	if diags := setMultiCloudGatewayFields(d, gateway, "native_id", "tier", "billing_account_number", "state", "external"); diags.HasError() {
+	if diags := setMultiCloudGatewayFields(d, gateway, "native_id", "tier", "billing_account_number", "state", "external", "connector_ids"); diags.HasError() {
 		return diags
 	}
 	d.SetId(gateway.Id.String())

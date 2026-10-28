@@ -28,24 +28,33 @@ func resourceAlkiraMultiCloudGateway() *schema.Resource {
 			"native_id":              {Type: schema.TypeString, Computed: true, Description: "Native gateway ID assigned by Lumen."},
 			"state":                  {Type: schema.TypeString, Computed: true, Description: "Provisioning state of the gateway."},
 			"external":               {Type: schema.TypeBool, Computed: true, Description: "True if the gateway was created in Lumen Connect rather than from Alkira."},
+			"connector_ids":          {Type: schema.TypeSet, Computed: true, Elem: &schema.Schema{Type: schema.TypeInt}, Description: connectorIdsDescription},
 		},
 	}
 }
+
+const connectorIdsDescription = "IDs of the connectors attached to the gateway, as reported by the API. The value is read with the gateway, so connectors created in the same apply appear after the next refresh."
 
 func multiCloudGatewayRequest(d *schema.ResourceData) *alkira.MultiCloudGateway {
 	return &alkira.MultiCloudGateway{Name: d.Get("name").(string), Tier: d.Get("tier").(string), Description: d.Get("description").(string), BillingAccountNumber: d.Get("billing_account_number").(string)}
 }
 
 func setMultiCloudGateway(d *schema.ResourceData, gateway *alkira.MultiCloudGateway) diag.Diagnostics {
-	return setMultiCloudGatewayFields(d, gateway, "name", "tier", "description", "billing_account_number", "native_id", "state", "external")
+	return setMultiCloudGatewayFields(d, gateway, "name", "tier", "description", "billing_account_number", "native_id", "state", "external", "connector_ids")
 }
 
 // setMultiCloudGatewayFields is shared with the data source, which sets only some of the keys.
 func setMultiCloudGatewayFields(d *schema.ResourceData, gateway *alkira.MultiCloudGateway, keys ...string) diag.Diagnostics {
 	values := map[string]string{"name": gateway.Name, "tier": gateway.Tier, "description": gateway.Description, "billing_account_number": gateway.BillingAccountNumber, "native_id": gateway.NativeId, "state": gateway.State}
 	for _, key := range keys {
-		if key == "external" {
+		switch key {
+		case "external":
 			if err := d.Set(key, gateway.External); err != nil {
+				return diag.FromErr(err)
+			}
+			continue
+		case "connector_ids":
+			if err := d.Set(key, gateway.ConnectorIds); err != nil {
 				return diag.FromErr(err)
 			}
 			continue

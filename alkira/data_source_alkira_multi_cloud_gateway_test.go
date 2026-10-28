@@ -22,7 +22,7 @@ func (f multiCloudGatewayDataSourceTransport) RoundTrip(r *http.Request) (*http.
 }
 
 func TestReadByName(t *testing.T) {
-	const gateway = `{"id":9223372036854775806,"name":"gateway","nativeId":"native-42","tier":"50GBPS","state":"PROVISIONED","external":true,"billingAccountNumber":"1-1ABCDE-F"}`
+	const gateway = `{"id":9223372036854775806,"name":"gateway","nativeId":"native-42","tier":"50GBPS","state":"PROVISIONED","external":true,"billingAccountNumber":"1-1ABCDE-F","connectorIds":[17,5]}`
 	const other = `{"id":7,"name":"gateway-other"}`
 	for _, tc := range []struct {
 		name      string
@@ -107,6 +107,9 @@ func TestReadByName(t *testing.T) {
 			}
 			if d.Get("external") != true {
 				t.Errorf("external = %v", d.Get("external"))
+			}
+			if got := mcgwConnectorIds(t, d); !reflect.DeepEqual(got, []int{5, 17}) {
+				t.Errorf("connector_ids = %v, want [5 17]", got)
 			}
 		})
 	}

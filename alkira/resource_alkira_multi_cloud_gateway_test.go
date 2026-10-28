@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -335,5 +337,92 @@ func TestUpdateWaitsForProvisioned(t *testing.T) {
 				t.Fatalf("returned before provisioned: gets=%d state=%v", gets, d.Get("state"))
 			}
 		})
+	}
+}
+func mcgwJSONConnectorIds(connectorIds string) string {
+	return fmt.Sprintf(`{"id":42,"name":"gateway","tier":"10GBPS","description":"original","nativeId":"native-42","state":"PROVISIONED"%s}`, connectorIds)
+}
+func mcgwConnectorIds(t *testing.T, d *schema.ResourceData) []int {
+	t.Helper()
+	var ids []int
+	for _, v := range d.Get("connector_ids").(*schema.Set).List() {
+		ids = append(ids, v.(int))
+	}
+	sort.Ints(ids)
+	return ids
+}
+func TestConnectorIdsComputedIntSet(t *testing.T) {
+	for kind, s := range map[string]*schema.Schema{
+		"resource":    mcgwResource(t).Schema["connector_ids"],
+		"data source": Provider().DataSourcesMap["alkira_multi_cloud_gateway"].Schema["connector_ids"],
+	} {
+		if s == nil {
+			t.Fatalf("%s has no connector_ids", kind)
+		}
+		if s.Type != schema.TypeSet || !s.Computed || s.Optional || s.Required || s.ForceNew {
+			t.Errorf("%s connector_ids must be a computed-only set: %#v", kind, s)
+		}
+		if elem, ok := s.Elem.(*schema.Schema); !ok || elem.Type != schema.TypeInt {
+			t.Errorf("%s connector_ids elements must be ints: %#v", kind, s.Elem)
+		}
+	}
+}
+func TestReadSetsConnectorIds(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want []int
+	}{
+		{"attached", `,"connectorIds":[17,5]`, []int{5, 17}},
+		{"empty", `,"connectorIds":[]`, nil},
+		{"omitted", ``, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := mcgwResource(t)
+			d := schema.TestResourceDataRaw(t, r.Schema, mcgwValues())
+			d.SetId("42")
+			if err := d.Set("connector_ids", []int{99}); err != nil {
+				t.Fatal(err)
+			}
+			c := mcgwClient(t, func(req *http.Request) (int, string) { return 200, mcgwJSONConnectorIds(tc.body) })
+			if diags := r.ReadContext(context.Background(), d, c); diags.HasError() {
+				t.Fatal(diags)
+			}
+			if got := mcgwConnectorIds(t, d); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("connector_ids = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// Connectors are created after their gateway, so the gateway's state from
+// apply has no connector IDs. A later refresh fills them in, in any order,
+// without producing a plan diff.
+func TestConnectorIdsRefreshPlansClean(t *testing.T) {
+	r := mcgwResource(t)
+	created := schema.TestResourceDataRaw(t, r.Schema, mcgwValues())
+	created.SetId("42")
+	c := mcgwClient(t, func(req *http.Request) (int, string) { return 200, mcgwJSONConnectorIds("") })
+	if diags := r.ReadContext(context.Background(), created, c); diags.HasError() {
+		t.Fatal(diags)
+	}
+	for _, body := range []string{`,"connectorIds":[5,17]`, `,"connectorIds":[17,5]`} {
+		state := created.State()
+		refreshed, diags := r.RefreshWithoutUpgrade(context.Background(), state, mcgwClient(t, func(req *http.Request) (int, string) {
+			return 200, mcgwJSONConnectorIds(body)
+		}))
+		if diags.HasError() {
+			t.Fatal(diags)
+		}
+		if got := mcgwConnectorIds(t, r.Data(refreshed)); !reflect.DeepEqual(got, []int{5, 17}) {
+			t.Fatalf("refreshed connector_ids = %v", got)
+		}
+		diff, err := r.Diff(context.Background(), refreshed, terraform.NewResourceConfigRaw(mcgwValues()), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !diff.Empty() {
+			t.Fatalf("refresh with %s must plan clean: %#v", body, diff)
+		}
 	}
 }

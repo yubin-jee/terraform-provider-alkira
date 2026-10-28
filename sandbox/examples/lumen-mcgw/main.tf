@@ -84,12 +84,25 @@ resource "alkira_connector_multi_cloud_gateway" "azure" {
   }
 }
 
+# The connectors are created after the gateway, so the gateway resource's own
+# connector_ids only lists them after the next refresh. Reading the gateway
+# back once its connectors exist gives the attached IDs in the same apply.
+data "alkira_multi_cloud_gateway" "lumen" {
+  name = alkira_multi_cloud_gateway.lumen.name
+
+  depends_on = [
+    alkira_connector_multi_cloud_gateway.aws,
+    alkira_connector_multi_cloud_gateway.azure,
+  ]
+}
+
 output "gateway" {
   value = {
     id                     = alkira_multi_cloud_gateway.lumen.id
     native_id              = alkira_multi_cloud_gateway.lumen.native_id
     state                  = alkira_multi_cloud_gateway.lumen.state
     billing_account_number = alkira_multi_cloud_gateway.lumen.billing_account_number
+    connector_ids          = data.alkira_multi_cloud_gateway.lumen.connector_ids
   }
 }
 
