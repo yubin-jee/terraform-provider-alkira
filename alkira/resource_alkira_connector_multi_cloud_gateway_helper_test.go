@@ -1,7 +1,9 @@
 package alkira
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/alkiranet/alkira-client-go/alkira"
@@ -156,3 +158,64 @@ func TestValidateMultiCloudGatewayOnRampRegions(t *testing.T) {
 
 // TestDuplicateInstanceNamesRejected: two instance blocks sharing a name fail plan-time
 // validation naming the duplicate; unique names pass.
+
+// TestValidateOnRampRegion: values in the API's "<cloud region> - <cloud region name> -
+// <Lumen metro>" form pass; bare region codes, typos and malformed separators fail at plan
+// time with an error that names the bad value and shows an example.
+func TestValidateOnRampRegion(t *testing.T) {
+	valid := []string{
+		"us-east-1 - US East (N. Virginia) - Reston",
+		"us-east-1 - US East (N. Virginia) - Ashburn 100G",
+		"us-west-2 - US West (Oregon) - Hillsboro",
+		"eastus - East US - Ashburn",
+		"westus2 - West US 2 - Quincy",
+		"us-east4 - N. Virginia - Ashburn",
+		"eu-central-1 - Europe (Frankfurt) - Frankfurt - FRA1",
+	}
+	for _, v := range valid {
+		if _, errs := validateOnRampRegion(v, "on_ramp_region"); len(errs) != 0 {
+			t.Errorf("%q: want valid, got %v", v, errs)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"mars-1",
+		"us-east-1",
+		"US-EAST-1 - US East (N. Virginia) - Reston",
+		"us-east-1 - US East (N. Virginia)",
+		"us-east-1 -US East (N. Virginia) - Reston",
+		"us-east-1 - US East (N. Virginia) - ",
+		"us-east-1 -  - Reston",
+		" us-east-1 - US East (N. Virginia) - Reston",
+		"us_east_1 - US East (N. Virginia) - Reston",
+	}
+	for _, v := range invalid {
+		_, errs := validateOnRampRegion(v, "on_ramp_region")
+		if len(errs) != 1 {
+			t.Errorf("%q: want one error, got %v", v, errs)
+			continue
+		}
+		msg := errs[0].Error()
+		if !strings.Contains(msg, fmt.Sprintf("%q", v)) || !strings.Contains(msg, `"us-east-1 - US East (N. Virginia) - Reston"`) {
+			t.Errorf("%q: error should name the value and show an example, got %q", v, msg)
+		}
+	}
+
+	if _, errs := validateOnRampRegion(42, "on_ramp_region"); len(errs) != 1 {
+		t.Errorf("non-string: want one error, got %v", errs)
+	}
+}
+
+// TestOnRampRegionSchemaValidation: the instance block's on_ramp_region is wired to
+// validateOnRampRegion, so `terraform validate` and `plan` reject a malformed value.
+func TestOnRampRegionSchemaValidation(t *testing.T) {
+	r := resourceAlkiraConnectorMultiCloudGateway()
+	f := r.Schema["instance"].Elem.(*schema.Resource).Schema["on_ramp_region"]
+	if f.ValidateFunc == nil {
+		t.Fatal("on_ramp_region has no ValidateFunc")
+	}
+	if _, errs := f.ValidateFunc("mars-1", "instance.0.on_ramp_region"); len(errs) == 0 {
+		t.Fatal(`want "mars-1" rejected`)
+	}
+}

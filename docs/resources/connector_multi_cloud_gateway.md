@@ -74,7 +74,7 @@ resource "alkira_connector_multi_cloud_gateway" "example" {
 Required:
 
 - `name` (String) Name of the instance, unique in the connector.
-- `on_ramp_region` (String) The Lumen on-ramp region of this instance's hosted connection. Can only be changed while the instance has not yet been provisioned.
+- `on_ramp_region` (String) The Lumen on-ramp region of this instance's hosted connection, in the form `<cloud region> - <cloud region name> - <Lumen metro>`, e.g. `us-east-1 - US East (N. Virginia) - Reston`. Can only be changed while the instance has not yet been provisioned.
 
 Read-Only:
 

@@ -116,9 +116,10 @@ func resourceAlkiraConnectorMultiCloudGateway() *schema.Resource {
 							Required:    true,
 						},
 						"on_ramp_region": {
-							Description: "The Lumen on-ramp region of this instance's hosted connection. Can only be changed while the instance has not yet been provisioned.",
-							Type:        schema.TypeString,
-							Required:    true,
+							Description:  "The Lumen on-ramp region of this instance's hosted connection, in the form `<cloud region> - <cloud region name> - <Lumen metro>`, e.g. `us-east-1 - US East (N. Virginia) - Reston`. Can only be changed while the instance has not yet been provisioned.",
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validateOnRampRegion,
 						},
 						"id": {
 							Description: "ID Alkira assigned to the instance.",
