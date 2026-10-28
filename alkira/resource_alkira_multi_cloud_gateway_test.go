@@ -337,3 +337,120 @@ func TestUpdateWaitsForProvisioned(t *testing.T) {
 		})
 	}
 }
+
+func mcgwExternalState(t *testing.T, external bool) *terraform.InstanceState {
+	t.Helper()
+	r := mcgwResource(t)
+	values := mcgwValues()
+	values["billing_account_number"] = "5-LMNCX0001"
+	d := schema.TestResourceDataRaw(t, r.Schema, values)
+	d.SetId("42")
+	if err := d.Set("external", external); err != nil {
+		t.Fatal(err)
+	}
+	return d.State()
+}
+
+func TestExternalGatewayChangesFailAtPlan(t *testing.T) {
+	r := mcgwResource(t)
+	for field, value := range map[string]string{"name": "renamed", "tier": "UNLIMITED", "description": "changed", "billing_account_number": "5-LMNCX0002"} {
+		t.Run(field, func(t *testing.T) {
+			values := mcgwValues()
+			values["billing_account_number"] = "5-LMNCX0001"
+			values[field] = value
+			_, err := r.Diff(context.Background(), mcgwExternalState(t, true), terraform.NewResourceConfigRaw(values), nil)
+			if err == nil {
+				t.Fatalf("changing %s on an external gateway planned without error", field)
+			}
+			for _, want := range []string{"created in Lumen Connect", "external = true", field + ":", "terraform state rm", "alkira_multi_cloud_gateway` data source"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q does not contain %q", err, want)
+				}
+			}
+		})
+	}
+}
+
+func TestExternalGatewayErrorListsEveryChange(t *testing.T) {
+	r := mcgwResource(t)
+	values := mcgwValues()
+	values["tier"], values["description"] = "50GBPS", ""
+	_, err := r.Diff(context.Background(), mcgwExternalState(t, true), terraform.NewResourceConfigRaw(values), nil)
+	if err == nil {
+		t.Fatal("expected plan error")
+	}
+	for _, want := range []string{`tier: "10GBPS" -> "50GBPS"`, `description: "original" -> ""`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "name:") {
+		t.Errorf("unchanged name listed: %q", err)
+	}
+}
+
+func TestExternalGatewayWithoutChangesPlansClean(t *testing.T) {
+	r := mcgwResource(t)
+	for _, omitBAN := range []bool{false, true} {
+		values := mcgwValues()
+		if !omitBAN {
+			values["billing_account_number"] = "5-LMNCX0001"
+		}
+		diff, err := r.Diff(context.Background(), mcgwExternalState(t, true), terraform.NewResourceConfigRaw(values), nil)
+		if err != nil {
+			t.Fatalf("omitBAN=%v: %v", omitBAN, err)
+		}
+		if diff != nil && len(diff.Attributes) != 0 {
+			t.Fatalf("omitBAN=%v: unexpected diff %#v", omitBAN, diff.Attributes)
+		}
+	}
+}
+
+func TestNonExternalGatewayChangesStillPlan(t *testing.T) {
+	r := mcgwResource(t)
+	values := mcgwValues()
+	values["billing_account_number"] = "5-LMNCX0001"
+	values["tier"], values["description"] = "50GBPS", "changed"
+	diff, err := r.Diff(context.Background(), mcgwExternalState(t, false), terraform.NewResourceConfigRaw(values), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff == nil || diff.Attributes["tier"] == nil || diff.Attributes["description"] == nil || diff.RequiresNew() {
+		t.Fatalf("expected in-place diff: %#v", diff)
+	}
+	values["name"] = "renamed"
+	diff, err = r.Diff(context.Background(), mcgwExternalState(t, false), terraform.NewResourceConfigRaw(values), nil)
+	if err != nil || diff == nil || !diff.RequiresNew() {
+		t.Fatalf("expected replacement: %#v %v", diff, err)
+	}
+}
+
+func TestCreatePlanIgnoresExternalGuard(t *testing.T) {
+	r := mcgwResource(t)
+	diff, err := r.Diff(context.Background(), nil, terraform.NewResourceConfigRaw(mcgwValues()), nil)
+	if err != nil || diff == nil || diff.Attributes["tier"] == nil {
+		t.Fatalf("create plan: %#v %v", diff, err)
+	}
+}
+
+func TestDeleteExternalGatewayFailsWithoutAPICall(t *testing.T) {
+	r := mcgwResource(t)
+	d := schema.TestResourceDataRaw(t, r.Schema, mcgwValues())
+	d.SetId("42")
+	if err := d.Set("external", true); err != nil {
+		t.Fatal(err)
+	}
+	c := mcgwClient(t, func(req *http.Request) (int, string) {
+		t.Errorf("unexpected API call: %s %s", req.Method, req.URL.Path)
+		return 500, ""
+	})
+	diags := r.DeleteContext(context.Background(), d, c)
+	if !diags.HasError() || d.Id() != "42" {
+		t.Fatalf("delete: %v, ID %q", diags, d.Id())
+	}
+	for _, want := range []string{"created in Lumen Connect", "terraform state rm", "prevent_destroy"} {
+		if !strings.Contains(diags[0].Summary, want) {
+			t.Errorf("error %q does not contain %q", diags[0].Summary, want)
+		}
+	}
+}
