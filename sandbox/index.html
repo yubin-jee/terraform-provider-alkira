@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumen Connect · Sandbox</title>
+<style>
+  :root { --lumen: #0c9ed9; --navy: #0b1f3a; --ink: #1d2733; --muted: #6b7785; --line: #e3e8ee; --bg: #f5f7fa; --ok: #1b9e5a; --warn: #d98a0c; --err: #c8323b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--ink); background: var(--bg); }
+  header { background: #fff; border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1320px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; gap: 18px; }
+  .logo { height: 22px; width: auto; color: var(--lumen); }
+  .product { font-size: 19px; font-weight: 600; color: var(--navy); padding-left: 18px; border-left: 1px solid var(--line); }
+  .tenant { margin-left: auto; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(27,158,90,.15); }
+  .hero { background: linear-gradient(100deg, var(--navy) 0%, #12315c 60%, #0d5f8f 100%); color: #fff; }
+  .hero .bar { padding: 22px 28px; display: block; }
+  .hero h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
+  .hero p { margin: 0; color: #c4d4e6; font-size: 14px; }
+  .stats { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+  .stat { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 8px 14px; min-width: 120px; }
+  .stat b { display: block; font-size: 20px; }
+  .stat span { font-size: 12px; color: #c4d4e6; }
+  main { max-width: 1320px; margin: 0 auto; padding: 22px 28px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; }
+  section.kind { margin-bottom: 22px; }
+  section.kind h2 { font-size: 15px; margin: 0 0 10px; color: var(--navy); display: flex; align-items: center; gap: 8px; }
+  .count { background: #e6f5fc; color: #08709c; font-size: 12px; border-radius: 10px; padding: 1px 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; transition: box-shadow .6s, border-color .6s; }
+  .card.flash { border-color: var(--lumen); box-shadow: 0 0 0 3px rgba(12,158,217,.22); }
+  .card h3 { margin: 0 0 8px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .card h3 .id { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .badge { margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: .03em; border-radius: 10px; padding: 2px 8px; background: #eef1f4; color: var(--muted); }
+  .badge.PROVISIONED, .badge.ACTIVE { background: #e4f5ec; color: var(--ok); }
+  .badge.PROVISIONING, .badge.PENDING { background: #fdf2e1; color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  td { padding: 3px 0; vertical-align: top; border-top: 1px solid #f0f3f6; }
+  td.k { color: var(--muted); width: 44%; padding-right: 10px; }
+  td.v { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-word; }
+  .sub { margin: 6px 0 0; padding: 8px 10px; background: #f7f9fb; border-radius: 6px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 14px 16px; background: #fff; border: 1px dashed var(--line); border-radius: 10px; }
+  aside { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; align-self: start; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+  aside h2 { font-size: 15px; margin: 0 0 10px; color: var(--navy); }
+  .ev { font-size: 12px; padding: 6px 0; border-top: 1px solid #f0f3f6; }
+  .ev .m { font-weight: 600; display: inline-block; width: 52px; }
+  .ev .s { float: right; font-weight: 600; }
+  .ev .s.ok { color: var(--ok); } .ev .s.bad { color: var(--err); }
+  .ev .p { font-family: ui-monospace, Menlo, monospace; color: var(--muted); word-break: break-all; }
+  .ev .msg { color: var(--err); margin-top: 2px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 18px 0 28px; }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <svg class="logo" role="img" aria-label="Lumen" viewBox="0 0 153 22.000001" xmlns="http://www.w3.org/2000/svg" >  <g transform="translate(-165.988,-54.533)"> <g> <g> <path d="m 165.988,56.133 v 18.189 c 0,1.1 0.641,1.6 1.875,1.6 h 17.193 c 1.189,0 1.874,-0.5 1.874,-1.6 0,-1.051 -0.685,-1.6 -1.874,-1.6 h -14.77 c -0.594,0 -0.823,-0.274 -0.823,-0.823 V 56.133 a 1.6,1.6 0 0 0 -1.737,-1.6 1.627,1.627 0 0 0 -1.738,1.6" /> <path d="M 195.527,67.949 V 56.133 a 1.743,1.743 0 0 0 -3.475,0 v 12.136 c 0,7.362 4.572,8.2 12.483,8.2 7.911,0 12.483,-0.84 12.483,-8.2 V 56.133 a 1.743,1.743 0 0 0 -3.475,0 v 11.816 c 0,5.99 -3.2,5.184 -9.008,5.184 -5.808,0 -9.008,0.714 -9.008,-5.184" /> <path d="M 250.9,59.883 V 74.6 a 1.6,1.6 0 0 0 1.737,1.6 1.576,1.576 0 0 0 1.738,-1.6 V 56.91 a 2.251,2.251 0 0 0 -2.2,-2.377 c -1.2,0 -1.723,0.679 -2.88,1.737 l -8.871,8.752 h -0.046 l -8.871,-8.706 c -1.137,-1.171 -2,-1.783 -3.018,-1.783 a 2.459,2.459 0 0 0 -2.24,2.377 V 74.6 a 1.6,1.6 0 0 0 1.737,1.6 1.576,1.576 0 0 0 1.738,-1.6 V 59.837 h 0.183 l 8.459,8.02 c 0.761,0.746 1.353,1.326 1.966,1.326 0.77,0 1.165,-0.6 2.012,-1.326 l 8.414,-7.974 z" /> <path d="m 284.828,56.453 c 0,-1.051 -0.64,-1.646 -1.875,-1.646 h -17.376 c -1.234,0 -1.874,0.6 -1.874,1.646 v 1.594 l 19.3,-0.039 c 1.189,0 1.829,-0.549 1.829,-1.555" fill="#0c9ed9" /> <path d="m 263.7,63.837 v 10.485 c 0,1.1 0.64,1.6 1.875,1.6 h 17.558 c 1.189,0 1.829,-0.5 1.829,-1.6 0,-1.052 -0.64,-1.6 -1.829,-1.6 H 268 c -0.594,0 -0.823,-0.275 -0.823,-0.823 V 67.08 h 11.431 c 1.235,0 1.875,-0.549 1.875,-1.6 0,-1 -0.64,-1.6 -1.875,-1.6 z" /> <path d="M 318.07,74.139 V 56.133 a 1.626,1.626 0 0 0 -1.737,-1.6 1.6,1.6 0 0 0 -1.738,1.6 V 70.71 L 297.4,56.27 c -1.183,-0.993 -1.842,-1.737 -2.972,-1.737 -1.24,0 -2.057,0.823 -2.057,2.377 V 74.6 a 1.626,1.626 0 0 0 1.737,1.6 1.6,1.6 0 0 0 1.738,-1.6 V 59.7 l 17.01,14.622 c 1.139,0.968 1.929,1.875 3.109,1.875 a 2.031,2.031 0 0 0 2.1,-2.058" /> </g> </g> <g> <g> <g /> </g> </g> </g> </svg>
+  <div class="product">Connect</div>
+  <div class="tenant"><span class="dot"></span><span id="tenant">tenant network</span> · <span id="updated">-</span></div>
+</div></header>
+<div class="hero"><div class="bar">
+  <h1>Multi-Cloud Gateway inventory</h1>
+  <p>Gateways, cloud on-ramp connectors, segments, groups and billing tags provisioned through terraform-provider-alkira. Read-only, refreshes live.</p>
+  <div class="stats" id="stats"></div>
+</div></div>
+<main>
+  <div id="sections"></div>
+  <aside><h2>API activity</h2><div id="events"><div class="empty">No API calls yet.</div></div></aside>
+</main>
+<footer>local sandbox, not the Alkira portal</footer>
+<script>
+const seen = new Map();
+const hidden = new Set(["id", "name"]);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const label = k => k.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase());
+function value(v) {
+  if (v === null || v === undefined || v === "") return '<span style="color:#aab4bf">—</span>';
+  if (Array.isArray(v)) {
+    if (!v.length) return '<span style="color:#aab4bf">[]</span>';
+    if (typeof v[0] !== "object") return esc(v.join(", "));
+    return v.map(o => '<div class="sub">' + rows(o, false) + '</div>').join("");
+  }
+  if (typeof v === "object") return '<div class="sub">' + rows(v, false) + '</div>';
+  return esc(v);
+}
+function rows(o, top) {
+  return '<table>' + Object.entries(o).filter(([k]) => !(top && hidden.has(k))).map(([k, v]) =>
+    '<tr><td class="k">' + esc(label(k)) + '</td><td class="v">' + value(v) + '</td></tr>').join("") + '</table>';
+}
+function card(key, o) {
+  const sig = JSON.stringify(o), uid = key + ":" + o.id, flash = window.loaded && seen.get(uid) !== sig;
+  seen.set(uid, sig);
+  const status = o.state || o.configStatus;
+  return '<div class="card' + (flash ? ' flash' : '') + '" data-uid="' + esc(uid) + '"><h3>' + esc(o.name || "(unnamed)") +
+    ' <span class="id">#' + esc(o.id) + '</span>' + (status ? '<span class="badge ' + esc(status) + '">' + esc(status) + '</span>' : '') +
+    '</h3>' + rows(o, true) + '</div>';
+}
+async function refresh() {
+  try {
+    const r = await fetch("/state.json", {cache: "no-store"});
+    const s = await r.json();
+    document.getElementById("tenant").textContent = s.tenant;
+    document.getElementById("updated").textContent = "updated " + new Date(s.updated).toLocaleTimeString();
+    document.getElementById("stats").innerHTML = s.sections.map(x =>
+      '<div class="stat"><b>' + x.items.length + '</b><span>' + esc(x.title) + '</span></div>').join("");
+    document.getElementById("sections").innerHTML = s.sections.map(x =>
+      '<section class="kind"><h2>' + esc(x.title) + ' <span class="count">' + x.items.length + '</span></h2>' +
+      (x.items.length ? '<div class="grid">' + x.items.map(o => card(x.key, o)).join("") + '</div>'
+                      : '<div class="empty">Nothing provisioned yet.</div>') + '</section>').join("");
+    const ev = (s.events || []).slice().reverse();
+    document.getElementById("events").innerHTML = ev.length ? ev.map(e =>
+      '<div class="ev"><span class="m">' + esc(e.method) + '</span><span class="s ' + (e.status < 400 ? 'ok' : 'bad') + '">' + e.status + '</span>' +
+      '<div class="p">' + esc(e.path) + '</div>' + (e.message ? '<div class="msg">' + esc(e.message) + '</div>' : '') +
+      '<div style="color:#aab4bf;font-size:11px">' + new Date(e.time).toLocaleTimeString() + '</div></div>').join("")
+      : '<div class="empty">No API calls yet.</div>';
+    window.loaded = true;
+    setTimeout(() => document.querySelectorAll(".card.flash").forEach(c => c.classList.remove("flash")), 1500);
+  } catch (e) { document.getElementById("updated").textContent = "sandbox unreachable"; }
+}
+refresh(); setInterval(refresh, 1000);
+</script>
+</body>
+</html>
